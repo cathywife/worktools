@@ -1,0 +1,6 @@
+use fighting_db;
+db.dropDatabase()
+use fighting_db
+db.fighting_reports.ensureIndex( { "e": 1 }, { expireAfterSeconds: 0 } );
+db.dks_user.ensureIndex({wuid: 1, eventUniqueId: 1}, {unique:1})
+db.game_message_center.ensureIndex({u:1,s:1,_id:1})

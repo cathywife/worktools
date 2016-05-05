@@ -1,0 +1,6 @@
+use fighting_db;
+db.game_message_center.drop()
+db.game_message_center.ensureIndex({u:1,s:1,_id:1})
+use fighting_db;
+db.fighting_reports.drop()
+db.fighting_reports.ensureIndex( { "e": 1 }, { expireAfterSeconds: 0 } );

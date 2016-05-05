@@ -1,0 +1,25 @@
+#!/bin/bash
+flag=` echo "rs.status()"|mongo --port 27017 | grep myState|cut -d ":" -f 2 |cut -d "," -f 1 |cut -d " " -f 2`
+date=`date +%Y%m%d`
+datebefore=`date -d '-2 week' +%Y%m%d`
+if [ $flag -eq 2 ];
+then
+mv /data/backup/backup.log /data/backup/backup.log.old
+mv /data/backup/backup_login_db.log /data/backup/backup_login_db.log.old
+echo "db.runCommand({fsync:1,lock:1})" |mongo --port 27017 admin > /data/backup/backup.log
+
+sleep 10
+mongodump --port 27017 -d login_db  -o /data/backup/login_db.`date +%Y%m%d` >> /data/backup/backup_login_db.log
+
+echo "db.fsyncUnlock()" |mongo --port 27017 admin >> /data/backup/backup.log
+
+mongorestore -h nba2_statistics_cbt3 -d login_db_android_group1_$date --drop --dir /data/backup/login_db\.$date/login_db >/dev/null 2>&1
+
+cd /data/backup
+tar -zcvf login_db.`date +%Y%m%d`.tar.gz login_db.`date +%Y%m%d` --remove-files
+#scp -l 30000 /data/backup/game_db.`date +%Y%m%d`.tar.gz root@10.96.29.2:/data/backup/
+#scp -l 30000 /data/backup/common_db.`date +%Y%m%d`.tar.gz root@10.96.29.2:/data/backup/
+
+rm -rf login_db.$datebefore.tar.gz
+fi
+

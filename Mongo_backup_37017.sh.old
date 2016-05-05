@@ -1,0 +1,77 @@
+#!/bin/bash
+flag=` echo "rs.status()"|mongo --port 37017 | grep myState|cut -d ":" -f 2 |cut -d "," -f 1 |cut -d " " -f 2`
+date=`date +%Y%m%d`
+datebefore=`date -d '-2 week' +%Y%m%d`
+if [ $flag -eq 2 ];
+then
+mv /data/backup/backup.log /data/backup/backup.log.old
+mv /data/backup/backup_game_db.log /data/backup/backup_game_db.log.old
+mv /data/backup/backup_game_message_db.log /data/backup/backup_game_message_db.log.old
+mv /data/backup/backup_game_union_db.log /data/backup/backup_game_union_db.old
+mv /data/backup/backup_common_db.log /data/backup/backup_common_db.old
+mv /data/backup/backup_game_challenge_db.log /data/backup/backup_game_challenge_db.log.old
+mv /data/backup/backup_game_seven_edition.log /data/backup/backup_game_seven_edition.log.old
+mv /data/backup/backup_game_push_event_db.log /data/backup/backup_game_push_event_db.log.old
+mv /data/backup/backup_game_eighth_edition.log /data/backup/backup_game_eighth_edition.log.old
+echo "db.runCommand({fsync:1,lock:1})" |mongo --port 37017 admin > /data/backup/backup.log
+
+sleep 5
+mongodump --port 37017 -d game_db  -o /data/backup/game_db.`date +%Y%m%d` >> /data/backup/backup_game_db.log
+sleep 5
+mongodump --port 37017 -d game_message_db  -o /data/backup/game_message_db.`date +%Y%m%d` >> /data/backup/backup_game_message_db.log
+sleep 5
+mongodump --port 37017 -d game_union_db  -o /data/backup/game_union_db.`date +%Y%m%d` >> /data/backup/backup_game_union_db.log
+sleep 5
+mongodump --port 37017 -d common_db  -o /data/backup/common_db.`date +%Y%m%d` >> /data/backup/backup_common_db.log
+sleep 5
+mongodump --port 37017 -d game_challenge_db -o /data/backup/game_challenge_db.`date +%Y%m%d` >> /data/backup/backup_game_challenge_db.log
+sleep 5
+mongodump --port 37017 -d game_seven_edition -o /data/backup/game_seven_edition.`date +%Y%m%d`>>/data/backup/bakcup_game_seven_edition.log
+sleep 5
+mongodump --port 37017 -d game_push_event_db     -o /data/backup/game_push_event_db.`date +%Y%m%d` >> /data/backup/backup_game_push_event_db.log
+sleep 5
+mongodump --port 37017 -d game_eighth_edition -o /data/backup/game_eighth_edition.`date +%Y%m%d` >> /data/backup/backup_game_eighth_edition.log
+
+echo "db.fsyncUnlock()" |mongo --port 37017 admin >> /data/backup/backup.log
+
+###############################
+mongorestore -h nba2_statistics_cbt3 -d common_db_android_group1_$date --drop --dir /data/backup/common_db\.$date/common_db 
+
+mongorestore -h nba2_statistics_cbt3 -d game_challenge_db_android_group1_$date --drop --dir /data/backup/game_challenge_db\.$date/game_challenge_db 
+
+mongorestore -h nba2_statistics_cbt3 -d game_eighth_edition_android_group1_$date --drop --dir /data/backup/game_eighth_edition\.$date/game_eighth_edition 
+
+mongorestore -h nba2_statistics_cbt3 -d game_message_db_android_group1_$date --drop --dir /data/backup/game_message_db\.$date/game_message_db 
+
+mongorestore -h nba2_statistics_cbt3 -d game_push_event_db_android_group1_$date --drop --dir /data/backup/game_push_event_db\.$date/game_push_event_db 
+
+mongorestore -h nba2_statistics_cbt3 -d game_seven_edition_android_group1_$date --drop --dir /data/backup/game_seven_edition\.$date/game_seven_edition
+
+mongorestore -h nba2_statistics_cbt3 -d game_db_android_group1_$date --drop --dir /data/backup/game_db\.$date/game_db 
+
+mongorestore -h nba2_statistics_cbt3 -d game_union_db_android_group1_$date --drop --dir /data/backup/game_union_db\.$date/game_union_db 
+###############################
+
+
+cd /data/backup
+tar -zcvf game_db.`date +%Y%m%d`.tar.gz game_db.`date +%Y%m%d` --remove-files
+tar -zcvf game_message_db.`date +%Y%m%d`.tar.gz game_message_db.`date +%Y%m%d` --remove-files
+tar -zcvf game_union_db.`date +%Y%m%d`.tar.gz game_union_db.`date +%Y%m%d` --remove-files
+tar -zcvf common_db.`date +%Y%m%d`.tar.gz common_db.`date +%Y%m%d` --remove-files
+tar -zcvf game_challenge_db.`date +%Y%m%d`.tar.gz game_challenge_db.`date +%Y%m%d` --remove-files
+tar -zcvf game_seven_edition.`date +%Y%m%d`.tar.gz game_seven_edition.`date +%Y%m%d` --remove-files
+tar -zcvf game_push_event_db.`date +%Y%m%d`.tar.gz game_push_event_db.`date +%Y%m%d` --remove-files
+tar -zcvf game_eighth_edition.`date +%Y%m%d`.tar.gz game_eighth_edition.`date +%Y%m%d` --remove-files
+#scp -l 30000 /data/backup/game_db.`date +%Y%m%d`.tar.gz root@10.96.29.2:/data/backup/
+#scp -l 30000 /data/backup/common_db.`date +%Y%m%d`.tar.gz root@10.96.29.2:/data/backup/
+
+rm -rf game_db.$datebefore.tar.gz
+rm -rf game_message_db.$datebefore.tar.gz
+rm -rf game_union_db.$datebefore.tar.gz
+rm -rf common_db.$datebefore.tar.gz
+rm -rf game_challenge_db.$datebefore.tar.gz
+rm -rf game_seven_edition.$datebefore.tar.gz
+rm -rf game_push_event_db.$datebefore.tar.gz
+rm -rf game_eighth_edition.$datebefore.tar.gz
+fi
+
