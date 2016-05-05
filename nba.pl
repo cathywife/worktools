@@ -7,7 +7,7 @@
 #  Please check the options before using.
 #
 #  Authors:
-#    Edison Chow <zhou.liyang@dena.jp>
+#    zouliuyun
 #================================================================
 use warnings;
 use strict;
