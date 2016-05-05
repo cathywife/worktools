@@ -1,0 +1,256 @@
+#!/bin/bash
+#by liuyun 20151110
+exit_with_help()
+{
+    echo "Usage: $0 [OPTION] PATTERN
+        Options:
+            -p 打印出服务器列表
+	    -b 并发数
+            -u 每台机器发送一条命令;
+            -e 扩展模式，将命令中的\${host}
+            -r 远程执行的命令行;
+            -l 本地执行的命令行;
+            -s 不更新服务器列表;
+            -h 打印本帮助信息;
+        eg1:lsgame  -e -l 'scp server_config_CN_PROD.js \${host}:/data/nba/nba_game_server/app/config_data_cn/server_config_CN_PROD.js' 'nba2_login' #host表示主机名#执行本地命令
+        eg2:lsgame  -e -u -l 'scp server_config_CN_PROD.js \${host}:/data/nba/nba_game_server/app/config_data_cn/server_config_CN_PROD.js' 'nba2_login' #host表示主机名#执行本地命令 hosts去重执行
+        eg3:lsgame  -r '/data/nba/ServerBuild/rs_fight.sh' 'nba2_fighting' #执行远程命令
+	eg4:lsgame -p 'nba2_fighting' #检查服务器列表 
+	eg5:lsgame -s -p '.*' #不更新/nba/server/log/hosts
+        "
+    exit 0 
+}
+#默认参数
+uniq="false"
+expand="false"
+local_cmd=""
+pattern=""
+static="false"
+listflag="false"
+bfnum=""
+print="false"
+remote_cmd=""
+timestamp=`date +%s%N`
+
+while getopts ":b:l:upser:h" optname
+    do
+        case "$optname" in 
+            "b")
+                bfnum="$OPTARG";
+                ;;
+            "l")
+                local_cmd="$OPTARG";
+                ;;
+            "u")
+                uniq="true";
+                ;;
+            "r")
+                remote_cmd="$OPTARG"
+                ;;
+            "e")
+                expand="true"
+                ;;
+            "s")
+                static="true";
+                ;;
+            "p")
+                print="true";
+                ;;
+            "?")
+                echo "Unkown option $OPTARG"
+                exit_with_help;
+                ;;
+            ":")
+                echo "No arugument value for option $OPTARG"
+                exit_with_help;
+                ;;
+            "h")
+                exit_with_help;
+                ;;
+            "*")
+                echo "Unsupported option [$optname]"
+                exit_with_help;
+                ;;
+        esac
+    done
+
+pattern=${@:$OPTIND}
+
+if [ -z "$pattern" ];
+then
+    echo "Pattern must be given"
+    exit_with_help;
+fi
+logpath=/nba/server/logs
+if [ ! -d $logpath ];then
+	mkdir -p $logpath 
+	exit
+fi
+init()
+{
+	if [ "$print" == "true" -a "$static" == "false" ];then
+		cat $worklist
+	fi
+}
+general_list()
+{	
+	hostlist=$logpath/hosts
+	worklist=$logpath/hosts.`date +%s`
+	if [ "$static" == "true" ];then
+		cat $hostlist|grep -v "#"|grep -v localhost|grep -v "^$"|grep -E "$pattern" >$logpath/tmplist
+		cat $logpath/tmplist
+		read -p "请确认操作列表:(Y/N)" flag
+		if [ $flag == "N" ];then
+			echo "请重新配置$hostlist"
+			exit 1
+		elif [ $flag == "Y" ];then
+			cat $logpath/tmplist >$hostlist
+		else
+			echo "输入错误 请重新执行lsgame"
+			exit 1
+		fi
+	else
+		cat /etc/hosts|grep -v "^#"|grep -v localhost|grep -v "^$"|grep -E "$pattern" >$hostlist
+	fi
+	#去重复
+	if [ $uniq == "true" ];
+	then
+    		#cat $logpath/hosts|grep -E "$pattern"|sort -k1 -u >$hostlist
+		cat $hostlist|awk '{a[$1]=$2}END{for( i in a ){print i"\t"a[i]}}' >$worklist
+	else
+		cp $hostlist $worklist
+		
+	fi
+	nums=`cat $worklist|wc -l `
+}
+remote_cmd()
+{
+
+        if [ $expand == "true" ];
+        then
+            
+            real_cmd=`echo "${remote_cmd}"|sed 's/${host}/'${host}'/g'`
+	else
+	    real_cmd=${remote_cmd}
+        fi
+        echo -n $i":	"
+        echo -e "\e[0;34;1m[${real_cmd}]\e[0m"
+        ssh root@$host "${real_cmd}" &>$logpath/remote_cmd_${host}.$timestamp
+        #ssh root@$host "${real_cmd}" &>/nba/server/logs/${host}.$timestamp
+        if [ $?  -ne 0 ];
+        then
+            echo -e "\e[0;31;1m[FAIL]\e[0m";
+        else
+            echo -e "\e[0;32;1m[OK]\e[0m";
+        fi
+        cat $logpath/remote_cmd_${host}.$timestamp
+        #cat /nba/server/logs/${host}.$timestamp
+        echo "=============================================="
+}
+
+local_cmd()
+{
+
+        if [ $expand == "true" ];
+        then
+            real_cmd=`echo "${local_cmd}"|sed 's/${host}/'${host}'/g'`
+	else
+	    real_cmd=${local_cmd}
+        fi
+        echo -n $i":    "
+        echo -e "\e[0;34;1m[${real_cmd}]\e[0m"
+        ${real_cmd} &>/nba/server/logs/stdout
+        if [ $?  -ne 0 ];
+        then
+            echo -e "\e[0;31;1m[FAIL]\e[0m";
+        else
+            echo -e "\e[0;32;1m[OK]\e[0m";
+        fi
+        cat /nba/server/logs/stdout
+        echo "=============================================="
+}
+#并发量函数
+bfexec()
+{
+        echo "并发后台执行中..."
+        if [ -z $1 ];
+        then
+                echo "use:bfexec remote_cmd"
+                exit 1
+
+        fi
+	for ((j=1;j<=$nums;j++));
+        do
+		i=`awk -v r=$j 'NR==r{print $0}' $worklist`
+                count=$(expr $count + 1 )
+                IP=`echo $i |awk  '{print $1}'`
+		YX=`echo $server |awk -F'_' '{print $1}'`
+                host=`echo $i |awk  '{print $2}'`
+                if [ $count -lt $bfnum ];then
+                        $1 >$logpath/${host}.$timestamp &
+                else
+                        #设置并发一组的时长
+                        $1 >$logpath/${host}.$timestamp &
+                        wait
+                        count=0
+                fi
+        done
+	wait
+	>$logpath/lsgame_$timestamp.log
+	cd $logpath
+	for f in `cd $logpath && find *$timestamp|grep -v remote_cmd|grep -v "log$"`
+	do
+		cat $f >>$logpath/lsgame_$timestamp.log
+	done
+	if [ $? -eq 0 ];then
+	    cd $logpath && find ./ -name "*$timestamp" -print |grep -v "log$"| awk -F [/]  '{print $2}' | sort |xargs  rm -rf
+	fi
+	echo "执行结果输出:$logpath/lsgame_$timestamp.log"
+}
+
+#case $game in
+#       "nba2")
+#                backendip=10.6.196.63
+#		backendfile=/app/www/serverlist_zz2
+#           ;;
+#       "tnba2")
+#		backendip=10.6.197.22
+#		backendfile=/app/www/serverlist_gc
+#           ;;
+#       *)
+#		exit_with_help
+#           ;;
+#esac
+#if [ ! -z $game ];then
+	general_list
+	init
+	if [ ! -z "${remote_cmd}" ];then
+		if [ -z $bfnum ];then
+        		for ((j=1;j<=$nums;j++));
+        		do
+                		i=`awk -v r=$j 'NR==r{print $0}' $worklist`
+				host=`echo $i |awk  '{print $2}'`
+        			IP=`echo $i |awk  '{print $1}'`
+				remote_cmd
+			done
+		else
+			bfexec remote_cmd
+		fi
+	fi
+        if  [ ! -z "${local_cmd}" ];then
+                if [ -z $bfnum ];then
+                        for ((j=1;j<=$nums;j++));
+                        do
+                                i=`awk -v r=$j 'NR==r{print $0}' $worklist`
+				host=`echo $i |awk  '{print $2}'`
+				IP=`echo $i |awk  '{print $1}'`
+                        	local_cmd
+			done
+                else
+                        bfexec local_cmd
+                fi
+        fi
+#fi
+cd $logpath && find ./ -name "*"   -mtime +2 -print | awk -F [/]  '{print $2}' | sort |xargs  rm -rf 
+#cd /nba/server/logs && find ./ -name "*"   -mtime +2 -print | awk -F [/]  '{print $2}' | sort |xargs  rm -rf 
+exit 0
