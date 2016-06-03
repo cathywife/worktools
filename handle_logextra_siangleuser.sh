@@ -51,7 +51,7 @@ if [ $db == "operation_log" ];then
 elif [ $db == "operation_db" ];then
 	flag=2
 fi
-#获取mongodb中导入的最早的日志日期和本地log目录下最早的日期和当前日期间想个的天数  
+#获取mongodb中导入的最早的日志日期和本地log目录下最早的日期和当前日期间相隔的天数  
 function getduringday()
 {
 	startdate=`cd /data/log/game$id && ls node*/*gz|awk -F [-] '{print $2}'|sort |head -n1|awk -F "." '{print $1}'`
