@@ -1,0 +1,14 @@
+#!/usr/bin/expect   
+set timeout 5 
+set host [lindex $argv 0] 
+set user [lindex $argv 1] 
+set passwd [lindex $argv 2] 
+ 
+spawn /usr/bin/rsync -avz -e ssh /root/.ssh $host:/root/
+#spawn ssh $user@$host
+
+expect {
+"yes/no" { send "yes\r";}
+"password:" {send "$passwd\r"}
+}
+#interact
